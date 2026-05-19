@@ -6,6 +6,7 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 - **18 tools** covering tickets, users, organizations, views, ticket fields, and triggers
 - Read and write operations (search, get, edit, solve)
+- **Two authentication methods**: API token (admin) or OAuth access token (scoped)
 - Automatic user name resolution on ticket results
 - Rate limit handling with automatic retries
 - Cross-platform: works on macOS, Linux, and Windows
@@ -14,7 +15,6 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 - Python 3.10+
 - A Zendesk account with API access
-- An API token (Admin > Channels > API)
 
 ## Installation
 
@@ -33,15 +33,50 @@ Or install directly from GitHub:
 pip install git+https://github.com/jkolarov/zendesk-mcp.git
 ```
 
-## Configuration
+## Authentication
 
-Create a `.env` file in the directory where you run the server, or set environment variables:
+The server supports two authentication methods. You only need one.
+
+### Option 1: API Token (Admin)
+
+Requires admin access. Go to Admin Center > Apps and integrations > Zendesk API > Add API Token.
 
 ```bash
-ZD_SUBDOMAIN=yourcompany        # yourcompany.zendesk.com
-ZD_EMAIL=you@yourcompany.com    # Your Zendesk email
-ZD_API_TOKEN=your_token_here    # Admin > Channels > API > Add API Token
+ZD_SUBDOMAIN=yourcompany
+ZD_EMAIL=you@yourcompany.com
+ZD_API_TOKEN=your_api_token_here
 ```
+
+### Option 2: OAuth Access Token (Recommended for agents)
+
+More secure — uses scoped permissions and is easily revocable. Does not require admin access to *use* (but an admin must create the OAuth client and token initially).
+
+**Setup steps:**
+
+1. **Create an OAuth client** in Admin Center > Apps and integrations > APIs > Zendesk API > OAuth Clients > Add OAuth Client
+2. **Create an access token** via the API (replace `12345` with your OAuth client's numeric ID from the clients list):
+   ```bash
+   curl https://yourcompany.zendesk.com/api/v2/oauth/tokens.json \
+     -X POST \
+     -u admin@yourcompany.com/token:ADMIN_API_TOKEN \
+     -H "Content-Type: application/json" \
+     -d '{
+       "token": {
+         "client_id": 12345,
+         "scopes": ["read", "write"]
+       }
+     }'
+   ```
+3. Copy the `full_token` from the response.
+
+```bash
+ZD_SUBDOMAIN=yourcompany
+ZD_OAUTH_TOKEN=your_oauth_token_here
+```
+
+> **Note:** If both `ZD_OAUTH_TOKEN` and `ZD_API_TOKEN` are set, OAuth takes precedence.
+
+For more details, see [Zendesk OAuth documentation](https://developer.zendesk.com/documentation/api-basics/authentication/creating-and-using-oauth-tokens-with-the-api/).
 
 ## MCP Client Configuration
 
@@ -49,6 +84,22 @@ ZD_API_TOKEN=your_token_here    # Admin > Channels > API > Add API Token
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
+**Using OAuth token:**
+```json
+{
+  "mcpServers": {
+    "zendesk": {
+      "command": "zendesk-mcp",
+      "env": {
+        "ZD_SUBDOMAIN": "yourcompany",
+        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
+      }
+    }
+  }
+}
+```
+
+**Using API token:**
 ```json
 {
   "mcpServers": {
@@ -57,7 +108,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
         "ZD_EMAIL": "you@yourcompany.com",
-        "ZD_API_TOKEN": "your_token_here"
+        "ZD_API_TOKEN": "your_api_token_here"
       }
     }
   }
@@ -75,13 +126,14 @@ Edit `~/.config/amazonq/mcp.json` (Linux/macOS) or `%USERPROFILE%\.config\amazon
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_EMAIL": "you@yourcompany.com",
-        "ZD_API_TOKEN": "your_token_here"
+        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
       }
     }
   }
 }
 ```
+
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
 
 ### Cursor
 
@@ -94,13 +146,14 @@ Add to `.cursor/mcp.json` in your project or global config:
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_EMAIL": "you@yourcompany.com",
-        "ZD_API_TOKEN": "your_token_here"
+        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
       }
     }
   }
 }
 ```
+
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
 
 > **Note:** If `zendesk-mcp` is not on your PATH, use the full path to the executable (e.g., `/home/user/.local/bin/zendesk-mcp` or `C:\Users\user\AppData\Local\Programs\Python\Python311\Scripts\zendesk-mcp.exe`).
 
@@ -132,6 +185,7 @@ Add to `.cursor/mcp.json` in your project or global config:
 - Only whitelisted Zendesk API paths are accessible (no arbitrary API calls)
 - API tokens are never logged or exposed in responses
 - All requests use HTTPS
+- OAuth tokens support scoped access (e.g., read-only)
 
 ## License
 
