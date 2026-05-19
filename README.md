@@ -54,7 +54,7 @@ More secure — uses scoped permissions and is easily revocable. Does not requir
 **Setup steps:**
 
 1. **Create an OAuth client** in Admin Center > Apps and integrations > APIs > Zendesk API > OAuth Clients > Add OAuth Client
-2. **Create an access token** via the API:
+2. **Create an access token** via the API (replace `12345` with your OAuth client's numeric ID from the clients list):
    ```bash
    curl https://yourcompany.zendesk.com/api/v2/oauth/tokens.json \
      -X POST \
@@ -62,7 +62,7 @@ More secure — uses scoped permissions and is easily revocable. Does not requir
      -H "Content-Type: application/json" \
      -d '{
        "token": {
-         "client_id": YOUR_CLIENT_ID,
+         "client_id": 12345,
          "scopes": ["read", "write"]
        }
      }'
@@ -84,6 +84,7 @@ For more details, see [Zendesk OAuth documentation](https://developer.zendesk.co
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
+**Using OAuth token:**
 ```json
 {
   "mcpServers": {
@@ -92,6 +93,22 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
         "ZD_OAUTH_TOKEN": "your_oauth_token_here"
+      }
+    }
+  }
+}
+```
+
+**Using API token:**
+```json
+{
+  "mcpServers": {
+    "zendesk": {
+      "command": "zendesk-mcp",
+      "env": {
+        "ZD_SUBDOMAIN": "yourcompany",
+        "ZD_EMAIL": "you@yourcompany.com",
+        "ZD_API_TOKEN": "your_api_token_here"
       }
     }
   }
@@ -116,6 +133,8 @@ Edit `~/.config/amazonq/mcp.json` (Linux/macOS) or `%USERPROFILE%\.config\amazon
 }
 ```
 
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
+
 ### Cursor
 
 Add to `.cursor/mcp.json` in your project or global config:
@@ -133,6 +152,8 @@ Add to `.cursor/mcp.json` in your project or global config:
   }
 }
 ```
+
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
 
 > **Note:** If `zendesk-mcp` is not on your PATH, use the full path to the executable (e.g., `/home/user/.local/bin/zendesk-mcp` or `C:\Users\user\AppData\Local\Programs\Python\Python311\Scripts\zendesk-mcp.exe`).
 

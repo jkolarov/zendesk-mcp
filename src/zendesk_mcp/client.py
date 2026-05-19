@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -47,7 +47,7 @@ class ZendeskClient:
         }
 
         if auth_method == "oauth":
-            client_kwargs["headers"]["Authorization"] = f"Bearer {settings.zd_oauth_token}"
+            client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, settings.zd_oauth_token)}"
         else:
             client_kwargs["auth"] = (f"{settings.zd_email}/token", settings.zd_api_token)
 
