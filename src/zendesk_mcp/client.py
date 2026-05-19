@@ -38,13 +38,20 @@ class ZendeskError(Exception):
 class ZendeskClient:
     def __init__(self):
         self.base_url = settings.zendesk_base_url
-        email, token = settings.zendesk_auth.split("/token:")
-        self.client = httpx.Client(
-            base_url=self.base_url,
-            auth=(f"{email}/token", token),
-            timeout=30.0,
-            headers={"Accept": "application/json"},
-        )
+        auth_method = settings.auth_method
+
+        client_kwargs = {
+            "base_url": self.base_url,
+            "timeout": 30.0,
+            "headers": {"Accept": "application/json"},
+        }
+
+        if auth_method == "oauth":
+            client_kwargs["headers"]["Authorization"] = f"Bearer {settings.zd_oauth_token}"
+        else:
+            client_kwargs["auth"] = (f"{settings.zd_email}/token", settings.zd_api_token)
+
+        self.client = httpx.Client(**client_kwargs)
 
     def _validate_path(self, path: str) -> None:
         normalized = path.split("?")[0]
@@ -75,7 +82,7 @@ class ZendeskClient:
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
             if status == 401:
-                raise ZendeskError(401, "Authentication failed", "Check your API token")
+                raise ZendeskError(401, "Authentication failed", "Check your API token or OAuth token")
             elif status == 403:
                 raise ZendeskError(403, "Access denied", "Token lacks required permissions")
             elif status == 404:
@@ -96,7 +103,7 @@ class ZendeskClient:
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
             if status == 401:
-                raise ZendeskError(401, "Authentication failed", "Check your API token")
+                raise ZendeskError(401, "Authentication failed", "Check your API token or OAuth token")
             elif status == 403:
                 raise ZendeskError(403, "Access denied", "Token lacks required permissions")
             elif status == 404:
