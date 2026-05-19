@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zendesk-mcp"
+version = "0.1.0"
+description = "Unofficial MCP server for Zendesk - provides AI assistants with tools to interact with Zendesk tickets, users, organizations, views, and triggers."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "jkolarov" }]
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.5.2",
+    "structlog>=24.1.0",
+    "tenacity>=8.2.3",
+]
+
+[project.scripts]
+zendesk-mcp = "zendesk_mcp.server:main"
