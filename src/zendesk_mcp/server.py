@@ -37,8 +37,8 @@ TOOLS = [
     ),
     Tool(
         name="get_ticket",
-        description="Get full details of a ticket by ID including comments, custom fields, and resolved names.",
-        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}}, "required": ["ticket_id"]},
+        description="Get details of a ticket by ID. By default returns full details with comments and resolved requester/assignee names (3+ API calls). Set include_comments=false for a metadata-only single API call — no comments, no name resolution; only IDs.",
+        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}, "include_comments": {"type": "boolean", "default": True, "description": "When true (default): fetch comments inline and resolve requester/assignee names. When false: single-call fast path — no comments, no name lookups; requester_id and assignee_id are still returned."}}, "required": ["ticket_id"]},
     ),
     Tool(
         name="get_ticket_audits",
@@ -180,7 +180,7 @@ TOOLS = [
 TOOL_DISPATCH = {
     "count_tickets": lambda a: count_tickets(a["query"]),
     "search_tickets": lambda a: search_tickets(a["query"], a.get("page", 1), a.get("per_page", 25)),
-    "get_ticket": lambda a: get_ticket(a["ticket_id"]),
+    "get_ticket": lambda a: get_ticket(a["ticket_id"], a.get("include_comments", True)),
     "get_ticket_audits": lambda a: get_ticket_audits(a["ticket_id"], a.get("limit_events", 25)),
     "get_ticket_comments": lambda a: get_ticket_comments(a["ticket_id"], a.get("limit", 25)),
     "edit_ticket": lambda a: edit_ticket(a["ticket_id"], a["fields"]),
