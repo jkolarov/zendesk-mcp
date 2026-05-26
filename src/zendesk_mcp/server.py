@@ -172,8 +172,8 @@ TOOLS = [
     ),
     Tool(
         name="count_satisfaction_ratings",
-        description="Count CSAT satisfaction ratings, optionally filtered by score and/or date range. Use before listing to understand volume.",
-        inputSchema={"type": "object", "properties": {"score": {"type": "string", "description": "Filter by score: 'good', 'bad', 'offered', 'unoffered', 'received', or variants like 'bad_with_comment'"}, "start_time": {"type": "integer", "description": "Start of date range as Unix epoch timestamp"}, "end_time": {"type": "integer", "description": "End of date range as Unix epoch timestamp"}}, "required": []},
+        description="Return an approximate account-level total count of all CSAT ratings. No filters supported — for a filtered count, call list_satisfaction_ratings with your filters and read the count field in the response.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
     ),
 ]
 
@@ -211,7 +211,7 @@ TOOL_DISPATCH = {
     "search_macros": lambda a: search_macros(a["query"], a.get("active")),
     # Satisfaction Ratings
     "list_satisfaction_ratings": lambda a: list_satisfaction_ratings(a.get("score"), a.get("start_time"), a.get("end_time"), a.get("page", 1), a.get("per_page", 25)),
-    "count_satisfaction_ratings": lambda a: count_satisfaction_ratings(a.get("score"), a.get("start_time"), a.get("end_time")),
+    "count_satisfaction_ratings": lambda a: count_satisfaction_ratings(),
 }
 
 

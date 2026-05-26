@@ -537,32 +537,15 @@ def list_satisfaction_ratings(
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
 
-def count_satisfaction_ratings(
-    score: str = None,
-    start_time: int = None,
-    end_time: int = None,
-) -> Dict[str, Any]:
-    """Return the count of CSAT ratings, optionally filtered by score and/or date range.
+def count_satisfaction_ratings() -> Dict[str, Any]:
+    """Return an approximate account-level total count of all CSAT ratings.
 
-    When filters are provided the list endpoint is used (it supports filtering and returns
-    an accurate count). When no filters are provided the dedicated /count endpoint is used
-    for a fast approximate account-level total.
+    This uses Zendesk's dedicated /count endpoint which returns a fast cached total
+    but does not support filtering. For a filtered count (by score or date range),
+    call list_satisfaction_ratings with your filters and read the returned count field.
     """
-    params: Dict[str, Any] = {}
-    if score is not None:
-        params["score"] = score
-    if start_time is not None:
-        params["start_time"] = start_time
-    if end_time is not None:
-        params["end_time"] = end_time
     try:
-        if params:
-            # /count.json ignores filters — use the list endpoint which honours them
-            params["per_page"] = 1
-            result = client.get("/api/v2/satisfaction_ratings.json", params=params)
-            return {"count": result.get("count", 0), "filtered": True}
-        else:
-            result = client.get("/api/v2/satisfaction_ratings/count.json")
-            return {"count": result.get("count", {}).get("value", 0), "filtered": False}
+        result = client.get("/api/v2/satisfaction_ratings/count.json")
+        return {"count": result.get("count", {}).get("value", 0)}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
