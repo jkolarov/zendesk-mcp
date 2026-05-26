@@ -18,20 +18,38 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 ## Installation
 
+### Option A: pipx (recommended)
+
+[pipx](https://pipx.pypa.io/) installs the package in an isolated environment and puts `zendesk-mcp` on your PATH automatically — no venv management needed.
+
+```bash
+pipx install git+https://github.com/jkolarov/zendesk-mcp.git
+```
+
+If you don't have pipx: `pip install pipx` or `brew install pipx` (macOS).
+
+### Option B: pip
+
 ```bash
 # Clone the repository
 git clone https://github.com/jkolarov/zendesk-mcp.git
 cd zendesk-mcp
 
+# Create and activate a virtual environment (avoids system Python conflicts)
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
 # Install (creates the 'zendesk-mcp' command)
 pip install .
 ```
 
-Or install directly from GitHub:
+Or install directly from GitHub into an active virtualenv:
 
 ```bash
 pip install git+https://github.com/jkolarov/zendesk-mcp.git
 ```
+
+> **PATH note:** After installation, `zendesk-mcp` must be on your PATH for MCP clients to find it. With pipx this is automatic. With pip into a venv, activate the venv first — or use the full path to the executable in your MCP client config (e.g. `/home/user/.venv/bin/zendesk-mcp` or `C:\Users\user\.venv\Scripts\zendesk-mcp.exe`).
 
 ## Authentication
 
@@ -162,8 +180,6 @@ Add to `.cursor/mcp.json` in your project or global config:
 ```
 
 Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of the OAuth vars.
-
-> **Note:** If `zendesk-mcp` is not on your PATH, use the full path to the executable (e.g., `/home/user/.local/bin/zendesk-mcp` or `C:\Users\user\AppData\Local\Programs\Python\Python311\Scripts\zendesk-mcp.exe`).
 
 ## Available Tools (30)
 
