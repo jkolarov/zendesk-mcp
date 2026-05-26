@@ -79,7 +79,7 @@ def search_tickets(query: str, page: int = 1, per_page: int = 25) -> Dict[str, A
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
 
-def get_ticket(ticket_id: int) -> Dict[str, Any]:
+def get_ticket(ticket_id: int, include_comments: bool = True) -> Dict[str, Any]:
     try:
         result = client.get(f"/api/v2/tickets/{ticket_id}.json")
         ticket = result.get("ticket", {})
@@ -100,9 +100,10 @@ def get_ticket(ticket_id: int) -> Dict[str, Any]:
             "created_at": ticket.get("created_at"),
             "updated_at": ticket.get("updated_at"),
         }
-        comments_result = get_ticket_comments(ticket_id, limit=50)
-        if "error" not in comments_result:
-            ticket_data["comments"] = comments_result.get("comments", [])
+        if include_comments:
+            comments_result = get_ticket_comments(ticket_id, limit=50)
+            if "error" not in comments_result:
+                ticket_data["comments"] = comments_result.get("comments", [])
         return {"ticket": ticket_data}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
