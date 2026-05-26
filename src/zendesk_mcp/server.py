@@ -17,6 +17,9 @@ from .tools import (
     list_triggers, get_trigger, search_triggers,
     get_ticket_attachments, get_attachment,
     list_automations, get_automation, search_automations,
+    get_ticket_metrics,
+    list_macros, get_macro, search_macros,
+    list_satisfaction_ratings, count_satisfaction_ratings,
 )
 
 app = Server("zendesk-mcp")
@@ -139,6 +142,39 @@ TOOLS = [
         description="Search Zendesk automations by title. Optionally filter by active status.",
         inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search query matched against automation titles"}, "active": {"type": "boolean", "description": "If set, filter to only active (true) or inactive (false) automations"}}, "required": ["query"]},
     ),
+    # Ticket Metrics
+    Tool(
+        name="get_ticket_metrics",
+        description="Get performance metrics for a ticket: first reply time, full resolution time, agent wait time, on-hold time, number of reopens, and reply count. Times are in both calendar and business-hours minutes.",
+        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}}, "required": ["ticket_id"]},
+    ),
+    # Macros
+    Tool(
+        name="list_macros",
+        description="List Zendesk macros (canned ticket actions agents can apply in one click). Optionally filter to active macros only.",
+        inputSchema={"type": "object", "properties": {"active_only": {"type": "boolean", "default": False}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}}, "required": []},
+    ),
+    Tool(
+        name="get_macro",
+        description="Get a single Zendesk macro by ID, including all its actions.",
+        inputSchema={"type": "object", "properties": {"macro_id": {"type": "integer", "description": "Zendesk macro ID"}}, "required": ["macro_id"]},
+    ),
+    Tool(
+        name="search_macros",
+        description="Search Zendesk macros by title. Optionally filter by active status.",
+        inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search query matched against macro titles"}, "active": {"type": "boolean", "description": "Filter to only active (true) or inactive (false) macros"}}, "required": ["query"]},
+    ),
+    # Satisfaction Ratings (CSAT)
+    Tool(
+        name="list_satisfaction_ratings",
+        description="List CSAT satisfaction ratings. Filter by score ('good', 'bad', 'offered', 'received', 'good_with_comment', 'bad_without_comment', etc.) and/or a Unix-epoch date range.",
+        inputSchema={"type": "object", "properties": {"score": {"type": "string", "description": "Filter by score: 'good', 'bad', 'offered', 'unoffered', 'received', or variants like 'good_with_comment'"}, "start_time": {"type": "integer", "description": "Start of date range as Unix epoch timestamp"}, "end_time": {"type": "integer", "description": "End of date range as Unix epoch timestamp"}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}}, "required": []},
+    ),
+    Tool(
+        name="count_satisfaction_ratings",
+        description="Count CSAT satisfaction ratings, optionally filtered by score and/or date range. Use before listing to understand volume.",
+        inputSchema={"type": "object", "properties": {"score": {"type": "string", "description": "Filter by score: 'good', 'bad', 'offered', 'unoffered', 'received', or variants like 'bad_with_comment'"}, "start_time": {"type": "integer", "description": "Start of date range as Unix epoch timestamp"}, "end_time": {"type": "integer", "description": "End of date range as Unix epoch timestamp"}}, "required": []},
+    ),
 ]
 
 TOOL_DISPATCH = {
@@ -167,6 +203,15 @@ TOOL_DISPATCH = {
     "list_automations": lambda a: list_automations(a.get("active_only", False), a.get("page", 1), a.get("per_page", 100)),
     "get_automation": lambda a: get_automation(a["automation_id"]),
     "search_automations": lambda a: search_automations(a["query"], a.get("active")),
+    # Ticket Metrics
+    "get_ticket_metrics": lambda a: get_ticket_metrics(a["ticket_id"]),
+    # Macros
+    "list_macros": lambda a: list_macros(a.get("active_only", False), a.get("page", 1), a.get("per_page", 100)),
+    "get_macro": lambda a: get_macro(a["macro_id"]),
+    "search_macros": lambda a: search_macros(a["query"], a.get("active")),
+    # Satisfaction Ratings
+    "list_satisfaction_ratings": lambda a: list_satisfaction_ratings(a.get("score"), a.get("start_time"), a.get("end_time"), a.get("page", 1), a.get("per_page", 25)),
+    "count_satisfaction_ratings": lambda a: count_satisfaction_ratings(a.get("score"), a.get("start_time"), a.get("end_time")),
 }
 
 
