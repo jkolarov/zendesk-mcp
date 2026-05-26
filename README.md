@@ -4,7 +4,7 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 ## Features
 
-- **29 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, macros, attachments, and CSAT ratings
+- **30 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, macros, attachments, and CSAT ratings
 - Read and write operations (search, get, edit, solve)
 - **Three authentication methods**: OAuth Client Credentials (recommended), API token, or static OAuth access token
 - Automatic user name resolution on ticket results
@@ -165,7 +165,7 @@ Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of the OAuth va
 
 > **Note:** If `zendesk-mcp` is not on your PATH, use the full path to the executable (e.g., `/home/user/.local/bin/zendesk-mcp` or `C:\Users\user\AppData\Local\Programs\Python\Python311\Scripts\zendesk-mcp.exe`).
 
-## Available Tools (29)
+## Available Tools (30)
 
 ### Tickets (7)
 
@@ -199,10 +199,11 @@ Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of the OAuth va
 | `get_organization` | Get an organization by ID |
 | `search_organizations` | Search organizations by name |
 
-### Views (3)
+### Views (4)
 
 | Tool | Description |
 |------|-------------|
+| `list_views` | List views so agents can discover view IDs |
 | `get_view` | Get view details including conditions and execution settings |
 | `count_view` | Get the current ticket count for a view |
 | `list_view_tickets` | List tickets in a view (paginated) |

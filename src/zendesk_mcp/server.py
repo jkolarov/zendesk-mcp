@@ -12,7 +12,7 @@ from .tools import (
     edit_ticket, solve_ticket,
     get_user, search_users,
     get_organization, search_organizations,
-    get_view, count_view, list_view_tickets,
+    list_views, get_view, count_view, list_view_tickets,
     list_ticket_fields,
     list_triggers, get_trigger, search_triggers,
     get_ticket_attachments, get_attachment,
@@ -79,6 +79,11 @@ TOOLS = [
         name="search_organizations",
         description="Search Zendesk organizations by name.",
         inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}}, "required": ["query"]},
+    ),
+    Tool(
+        name="list_views",
+        description="List Zendesk views (saved ticket searches). Use this to discover view IDs to pass to get_view, count_view, or list_view_tickets.",
+        inputSchema={"type": "object", "properties": {"active_only": {"type": "boolean", "default": False, "description": "When true, only active (visible) views are returned."}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}}, "required": []},
     ),
     Tool(
         name="get_view",
@@ -189,6 +194,7 @@ TOOL_DISPATCH = {
     "search_users": lambda a: search_users(a["query"], a.get("page", 1), a.get("per_page", 25)),
     "get_organization": lambda a: get_organization(a["org_id"]),
     "search_organizations": lambda a: search_organizations(a["query"], a.get("page", 1), a.get("per_page", 25)),
+    "list_views": lambda a: list_views(a.get("active_only", False), a.get("page", 1), a.get("per_page", 100)),
     "get_view": lambda a: get_view(a["view_id"]),
     "count_view": lambda a: count_view(a["view_id"]),
     "list_view_tickets": lambda a: list_view_tickets(a["view_id"], a.get("page", 1), a.get("per_page", 25)),

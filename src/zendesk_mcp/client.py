@@ -16,6 +16,8 @@ ALLOWED_PATHS = {
     "/api/v2/users/search.json",
     "/api/v2/organizations/{id}.json",
     "/api/v2/organizations/search.json",
+    "/api/v2/views.json",
+    "/api/v2/views/active.json",
     "/api/v2/views/{id}.json",
     "/api/v2/views/{id}/count.json",
     "/api/v2/views/{id}/tickets.json",
