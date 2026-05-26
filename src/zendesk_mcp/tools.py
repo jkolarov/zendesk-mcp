@@ -532,7 +532,7 @@ def list_satisfaction_ratings(
     try:
         result = client.get("/api/v2/satisfaction_ratings.json", params=params)
         ratings = [_format_satisfaction_rating(r) for r in result.get("satisfaction_ratings", [])]
-        return {"page": page, "per_page": per_page, "count": result.get("count", len(ratings)), "ratings": ratings}
+        return {"page": page, "per_page": per_page, "returned": len(ratings), "ratings": ratings}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
@@ -540,9 +540,8 @@ def list_satisfaction_ratings(
 def count_satisfaction_ratings() -> Dict[str, Any]:
     """Return an approximate account-level total count of all CSAT ratings.
 
-    This uses Zendesk's dedicated /count endpoint which returns a fast cached total
-    but does not support filtering. For a filtered count (by score or date range),
-    call list_satisfaction_ratings with your filters and read the returned count field.
+    Uses Zendesk's dedicated /count endpoint which returns a fast cached total.
+    Filtering is not supported by this endpoint.
     """
     try:
         result = client.get("/api/v2/satisfaction_ratings/count.json")

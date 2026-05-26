@@ -172,7 +172,7 @@ TOOLS = [
     ),
     Tool(
         name="count_satisfaction_ratings",
-        description="Return an approximate account-level total count of all CSAT ratings. No filters supported — for a filtered count, call list_satisfaction_ratings with your filters and read the count field in the response.",
+        description="Return an approximate account-level total count of all CSAT ratings. Uses Zendesk's /count endpoint — no filters supported.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
 ]
