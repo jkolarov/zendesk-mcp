@@ -15,6 +15,8 @@ from .tools import (
     get_view, count_view, list_view_tickets,
     list_ticket_fields,
     list_triggers, get_trigger, search_triggers,
+    get_ticket_attachments, get_attachment,
+    list_automations, get_automation, search_automations,
 )
 
 app = Server("zendesk-mcp")
@@ -110,6 +112,33 @@ TOOLS = [
         description="Search Zendesk triggers by title.",
         inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "active": {"type": "boolean"}}, "required": ["query"]},
     ),
+    # Attachments
+    Tool(
+        name="get_ticket_attachments",
+        description="List all attachments across every comment on a ticket. Returns file name, content type, size, and direct download URL for each attachment.",
+        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}}, "required": ["ticket_id"]},
+    ),
+    Tool(
+        name="get_attachment",
+        description="Get metadata for a single attachment by its ID, including download URL and thumbnails.",
+        inputSchema={"type": "object", "properties": {"attachment_id": {"type": "integer", "description": "Zendesk attachment ID"}}, "required": ["attachment_id"]},
+    ),
+    # Automations
+    Tool(
+        name="list_automations",
+        description="List Zendesk automations (time-based business rules). Optionally filter to active automations only.",
+        inputSchema={"type": "object", "properties": {"active_only": {"type": "boolean", "default": False}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}}, "required": []},
+    ),
+    Tool(
+        name="get_automation",
+        description="Get a single Zendesk automation by ID, including its conditions and actions.",
+        inputSchema={"type": "object", "properties": {"automation_id": {"type": "integer", "description": "Zendesk automation ID"}}, "required": ["automation_id"]},
+    ),
+    Tool(
+        name="search_automations",
+        description="Search Zendesk automations by title. Optionally filter by active status.",
+        inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search query matched against automation titles"}, "active": {"type": "boolean", "description": "If set, filter to only active (true) or inactive (false) automations"}}, "required": ["query"]},
+    ),
 ]
 
 TOOL_DISPATCH = {
@@ -131,6 +160,13 @@ TOOL_DISPATCH = {
     "list_triggers": lambda a: list_triggers(a.get("active_only", False), a.get("page", 1), a.get("per_page", 100)),
     "get_trigger": lambda a: get_trigger(a["trigger_id"]),
     "search_triggers": lambda a: search_triggers(a["query"], a.get("active")),
+    # Attachments
+    "get_ticket_attachments": lambda a: get_ticket_attachments(a["ticket_id"]),
+    "get_attachment": lambda a: get_attachment(a["attachment_id"]),
+    # Automations
+    "list_automations": lambda a: list_automations(a.get("active_only", False), a.get("page", 1), a.get("per_page", 100)),
+    "get_automation": lambda a: get_automation(a["automation_id"]),
+    "search_automations": lambda a: search_automations(a["query"], a.get("active")),
 }
 
 
