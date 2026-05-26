@@ -19,5 +19,14 @@ dependencies = [
     "tenacity>=8.2.3",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [project.scripts]
 zendesk-mcp = "zendesk_mcp.server:main"

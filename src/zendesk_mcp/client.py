@@ -115,7 +115,7 @@ class ZendeskClient:
 
     def __init__(self):
         self.base_url = settings.zendesk_base_url
-        auth_method = settings.auth_method
+        self.auth_method = settings.auth_method
 
         client_kwargs: Dict[str, Any] = {
             "base_url": self.base_url,
@@ -123,15 +123,26 @@ class ZendeskClient:
             "headers": {"Accept": "application/json"},
         }
 
-        if auth_method == "oauth_client_credentials":
+        if self.auth_method == "oauth_client_credentials":
             token = self._fetch_client_credentials_token()
             client_kwargs["headers"]["Authorization"] = f"Bearer {token}"
-        elif auth_method == "oauth_static":
+        elif self.auth_method == "oauth_static":
             client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, settings.zd_oauth_token)}"
         else:
             client_kwargs["auth"] = (f"{settings.zd_email}/token", settings.zd_api_token)
 
         self.client = httpx.Client(**client_kwargs)
+
+    def _refresh_client_credentials_token(self) -> None:
+        """Re-mint the access token and update the in-memory Authorization header.
+
+        Called once on a 401 when ``auth_method == "oauth_client_credentials"``.
+        Zendesk OAuth access tokens have a finite TTL, so a long-lived MCP server
+        will eventually outlive its initial token. Re-minting recovers transparently
+        on the next call.
+        """
+        token = self._fetch_client_credentials_token()
+        self.client.headers["Authorization"] = f"Bearer {token}"
 
     def _validate_path(self, path: str) -> None:
         normalized = path.split("?")[0]
@@ -154,6 +165,10 @@ class ZendeskClient:
         self._validate_path(path)
         try:
             response = self.client.get(path, params=params)
+            if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
+                # Token may have expired — re-mint once and retry the request
+                self._refresh_client_credentials_token()
+                response = self.client.get(path, params=params)
             if response.status_code == 429:
                 retry_after = response.headers.get("Retry-After", "60")
                 raise ZendeskError(429, "Rate limit exceeded", f"Retry after {retry_after} seconds")
@@ -175,6 +190,10 @@ class ZendeskClient:
         self._validate_path(path)
         try:
             response = self.client.put(path, json=body, headers={"Content-Type": "application/json"})
+            if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
+                # Token may have expired — re-mint once and retry the request
+                self._refresh_client_credentials_token()
+                response = self.client.put(path, json=body, headers={"Content-Type": "application/json"})
             if response.status_code == 429:
                 retry_after = response.headers.get("Retry-After", "60")
                 raise ZendeskError(429, "Rate limit exceeded", f"Retry after {retry_after} seconds")
