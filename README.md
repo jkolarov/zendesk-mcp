@@ -1,10 +1,10 @@
 # Zendesk MCP Server
 
-An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Zendesk. Gives AI assistants (Claude Desktop, Amazon Q Developer, Cursor, etc.) tools to read and manage Zendesk tickets, users, organizations, views, and triggers.
+An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Zendesk. Gives AI assistants (Claude Desktop, Amazon Q Developer, Cursor, etc.) tools to read and manage Zendesk tickets, users, organizations, views, triggers, automations, and attachments.
 
 ## Features
 
-- **18 tools** covering tickets, users, organizations, views, ticket fields, and triggers
+- **23 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, and attachments
 - Read and write operations (search, get, edit, solve)
 - **Two authentication methods**: API token (admin) or OAuth access token (scoped)
 - Automatic user name resolution on ticket results
@@ -179,6 +179,48 @@ Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_T
 | `list_triggers` | List triggers (business rules) |
 | `get_trigger` | Get trigger details |
 | `search_triggers` | Search triggers by title |
+| `list_automations` | List automations (time-based rules) |
+| `get_automation` | Get automation details |
+| `search_automations` | Search automations by title |
+| `get_ticket_attachments` | List all attachments on a ticket |
+| `get_attachment` | Get metadata and download URL for an attachment |
+
+## Building Your Own Tools
+
+The generic tools above are a solid starting point, but the **best use of this MCP is to add tools that are tailored to your company's specific Zendesk setup**. Because a tool has a name, a description, and typed inputs, an AI assistant can invoke it with exactly the right intent — no prompt engineering required at call time.
+
+### What company-specific tools look like
+
+Instead of asking an AI to construct a query from scratch, you encode your team's domain knowledge directly into a tool:
+
+```python
+# A generic approach — the AI has to know your conventions
+search_tickets('type:ticket tags:escalation assignee:oncall-team status:open')
+
+# A company-specific tool — the AI just calls it by name
+get_open_escalations()
+```
+
+The tool internally knows which tag your team uses for escalations (`vip_escalation`), which group is on-call, and which statuses matter. The AI only needs to decide *when* to call it.
+
+### Examples of high-value custom tools
+
+| Tool name | What it encodes |
+|-----------|-----------------|
+| `get_open_escalations` | Your escalation tag(s), priority thresholds, and responsible team |
+| `get_tickets_pending_customer` | The exact status + tag combination your team uses for "waiting on customer" |
+| `get_sla_breached_tickets` | Your SLA view IDs or the custom field that tracks breach status |
+| `get_tickets_for_account` | Maps a company name to your `organization_id` automatically |
+| `get_oncall_queue` | Hardcodes the right group/assignee IDs for the current rotation |
+| `summarise_vip_account` | Fetches org + open tickets + recent comments for a named account in one shot |
+
+### How to add a custom tool
+
+1. Add a function to `src/zendesk_mcp/tools.py` that calls the existing primitives (`client.get`, `search_tickets`, etc.) with your company's hardcoded values.
+2. Register it in `server.py` — add an entry to `TOOLS` (with a clear `description` the AI will use to decide when to call it) and one line in `TOOL_DISPATCH`.
+3. If it needs a new Zendesk endpoint, add the path to `ALLOWED_PATHS` in `client.py`.
+
+The payoff: once a tool exists, the AI can use it precisely and reliably without you having to explain your internal conventions every time.
 
 ## Security
 
