@@ -1,6 +1,6 @@
 # Zendesk MCP Server
 
-An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Zendesk. Gives AI assistants (Claude Desktop, Amazon Q Developer, Cursor, etc.) tools to read and manage Zendesk tickets, users, organizations, views, triggers, automations, and attachments.
+An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Zendesk. Gives AI assistants (Claude Desktop, KIRO, Cursor, etc.) tools to read and manage Zendesk tickets, users, organizations, views, triggers, automations, and attachments.
 
 ## Features
 
