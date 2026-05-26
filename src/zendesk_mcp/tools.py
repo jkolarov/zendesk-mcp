@@ -230,6 +230,27 @@ def search_organizations(query: str, page: int = 1, per_page: int = 25) -> Dict[
 # --- Views ---
 
 
+def list_views(active_only: bool = False, page: int = 1, per_page: int = 100) -> Dict[str, Any]:
+    """List all views (or active views only). Lets agents discover view IDs."""
+    per_page = min(per_page, settings.tools_max_per_page)
+    path = "/api/v2/views/active.json" if active_only else "/api/v2/views.json"
+    try:
+        result = client.get(path, params={"page": page, "per_page": per_page})
+        views = [
+            {
+                "id": v.get("id"),
+                "title": v.get("title"),
+                "active": v.get("active"),
+                "position": v.get("position"),
+                "description": v.get("description"),
+            }
+            for v in result.get("views", [])
+        ]
+        return {"page": page, "per_page": per_page, "returned": len(views), "views": views}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
 def get_view(view_id: int) -> Dict[str, Any]:
     try:
         result = client.get(f"/api/v2/views/{view_id}.json")
