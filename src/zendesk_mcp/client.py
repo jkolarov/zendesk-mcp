@@ -37,6 +37,7 @@ ALLOWED_PATHS = {
     "/api/v2/tickets/{id}/comments.json",
     "/api/v2/users/{id}.json",
     "/api/v2/users/search.json",
+    "/api/v2/users/show_many.json",
     "/api/v2/organizations/{id}.json",
     "/api/v2/organizations/search.json",
     "/api/v2/views.json",
