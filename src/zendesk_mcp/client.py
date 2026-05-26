@@ -24,6 +24,13 @@ ALLOWED_PATHS = {
     "/api/v2/triggers/active.json",
     "/api/v2/triggers/search.json",
     "/api/v2/triggers/{id}.json",
+    # Attachments
+    "/api/v2/attachments/{id}.json",
+    # Automations
+    "/api/v2/automations.json",
+    "/api/v2/automations/active.json",
+    "/api/v2/automations/search.json",
+    "/api/v2/automations/{id}.json",
 }
 
 
