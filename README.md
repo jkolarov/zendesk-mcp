@@ -4,9 +4,9 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 ## Features
 
-- **23 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, and attachments
+- **29 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, macros, attachments, and CSAT ratings
 - Read and write operations (search, get, edit, solve)
-- **Two authentication methods**: API token (admin) or OAuth access token (scoped)
+- **Three authentication methods**: OAuth Client Credentials (recommended), API token, or static OAuth access token
 - Automatic user name resolution on ticket results
 - Rate limit handling with automatic retries
 - Cross-platform: works on macOS, Linux, and Windows
@@ -35,11 +35,36 @@ pip install git+https://github.com/jkolarov/zendesk-mcp.git
 
 ## Authentication
 
-The server supports two authentication methods. You only need one.
+The server supports three authentication modes. Set exactly one.
 
-### Option 1: API Token (Admin)
+| Mode | Env vars | Notes |
+|---|---|---|
+| **OAuth — Client Credentials** ⭐ recommended | `ZD_SUBDOMAIN` + `ZD_OAUTH_CLIENT_ID` + `ZD_OAUTH_CLIENT_SECRET` | Credentials never expire. Token fetched automatically at startup. |
+| **API Token** | `ZD_SUBDOMAIN` + `ZD_EMAIL` + `ZD_API_TOKEN` | Token generated in Admin Center → Zendesk API. |
+| **OAuth — Static Token** | `ZD_SUBDOMAIN` + `ZD_OAUTH_TOKEN` | Expires (up to 30 days). Manual rotation required. |
 
-Requires admin access. Go to Admin Center > Apps and integrations > Zendesk API > Add API Token.
+**Priority:** If multiple sets of credentials are present, the order is: Static Token → Client Credentials → API Token.
+
+> ⚠️ `ZD_OAUTH_CLIENT_SECRET` is the OAuth *client secret*, not an access token.
+> Do not paste it as `ZD_OAUTH_TOKEN` — they are different values used differently.
+> The server automatically exchanges the client secret for a token on every startup.
+
+### Option 1: OAuth — Client Credentials (recommended)
+
+Create an OAuth client in Admin Center > Apps & Integrations > OAuth Clients.
+
+```bash
+ZD_SUBDOMAIN=yourcompany
+ZD_OAUTH_CLIENT_ID=your_client_id_here
+ZD_OAUTH_CLIENT_SECRET=your_client_secret_here
+# ZD_OAUTH_SCOPE=read write   # optional, this is the default
+```
+
+Client ID and Client Secret **never expire** — configure once and forget.
+
+### Option 2: API Token
+
+Go to Admin Center > Apps and integrations > Zendesk API > Add API Token.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
@@ -47,34 +72,14 @@ ZD_EMAIL=you@yourcompany.com
 ZD_API_TOKEN=your_api_token_here
 ```
 
-### Option 2: OAuth Access Token (Recommended for agents)
+### Option 3: OAuth — Static Access Token
 
-More secure — uses scoped permissions and is easily revocable. Does not require admin access to *use* (but an admin must create the OAuth client and token initially).
-
-**Setup steps:**
-
-1. **Create an OAuth client** in Admin Center > Apps and integrations > APIs > Zendesk API > OAuth Clients > Add OAuth Client
-2. **Create an access token** via the API (replace `12345` with your OAuth client's numeric ID from the clients list):
-   ```bash
-   curl https://yourcompany.zendesk.com/api/v2/oauth/tokens.json \
-     -X POST \
-     -u admin@yourcompany.com/token:ADMIN_API_TOKEN \
-     -H "Content-Type: application/json" \
-     -d '{
-       "token": {
-         "client_id": 12345,
-         "scopes": ["read", "write"]
-       }
-     }'
-   ```
-3. Copy the `full_token` from the response.
+Obtain a token via the OAuth authorization flow, or by clicking "Generate Token" on the OAuth Clients page. Tokens expire (up to 30 days) and must be rotated manually.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
 ZD_OAUTH_TOKEN=your_oauth_token_here
 ```
-
-> **Note:** If both `ZD_OAUTH_TOKEN` and `ZD_API_TOKEN` are set, OAuth takes precedence.
 
 For more details, see [Zendesk OAuth documentation](https://developer.zendesk.com/documentation/api-basics/authentication/creating-and-using-oauth-tokens-with-the-api/).
 
@@ -84,7 +89,7 @@ For more details, see [Zendesk OAuth documentation](https://developer.zendesk.co
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-**Using OAuth token:**
+**Using OAuth Client Credentials (recommended):**
 ```json
 {
   "mcpServers": {
@@ -92,7 +97,8 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
       }
     }
   }
@@ -126,14 +132,15 @@ Edit `~/.config/amazonq/mcp.json` (Linux/macOS) or `%USERPROFILE%\.config\amazon
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
       }
     }
   }
 }
 ```
 
-Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of the OAuth vars.
 
 ### Cursor
 
@@ -146,44 +153,112 @@ Add to `.cursor/mcp.json` in your project or global config:
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_TOKEN": "your_oauth_token_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
       }
     }
   }
 }
 ```
 
-Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of `"ZD_OAUTH_TOKEN"`.
+Or with API token: use `"ZD_EMAIL"` and `"ZD_API_TOKEN"` instead of the OAuth vars.
 
 > **Note:** If `zendesk-mcp` is not on your PATH, use the full path to the executable (e.g., `/home/user/.local/bin/zendesk-mcp` or `C:\Users\user\AppData\Local\Programs\Python\Python311\Scripts\zendesk-mcp.exe`).
 
-## Available Tools
+## Available Tools (29)
+
+### Tickets (7)
 
 | Tool | Description |
 |------|-------------|
-| `count_tickets` | Count tickets matching a search query |
-| `search_tickets` | Search tickets with full details |
-| `get_ticket` | Get a single ticket with comments |
+| `count_tickets` | Count tickets matching a Zendesk search query |
+| `search_tickets` | Search tickets with full details and resolved user names |
+| `get_ticket` | Get a single ticket with all comments and custom fields |
 | `get_ticket_audits` | Get ticket audit/change history |
-| `get_ticket_comments` | Get ticket comments and notes |
-| `edit_ticket` | Update ticket fields |
-| `solve_ticket` | Set ticket status to solved |
-| `get_user` | Get user by ID |
-| `search_users` | Search users by name/email |
-| `get_organization` | Get organization by ID |
+| `get_ticket_comments` | Get ticket comments and internal notes |
+| `edit_ticket` | Update ticket fields (status, priority, tags, assignee, custom fields) |
+| `solve_ticket` | Shorthand to set ticket status to solved |
+
+### Ticket Metrics (1)
+
+| Tool | Description |
+|------|-------------|
+| `get_ticket_metrics` | Get reply times, resolution time, reopens, and SLA data for a ticket |
+
+### Users (2)
+
+| Tool | Description |
+|------|-------------|
+| `get_user` | Get a user by ID |
+| `search_users` | Search users by name or email |
+
+### Organizations (2)
+
+| Tool | Description |
+|------|-------------|
+| `get_organization` | Get an organization by ID |
 | `search_organizations` | Search organizations by name |
-| `get_view` | Get view details |
-| `count_view` | Get ticket count for a view |
-| `list_view_tickets` | List tickets in a view |
-| `list_ticket_fields` | List all ticket fields |
-| `list_triggers` | List triggers (business rules) |
-| `get_trigger` | Get trigger details |
+
+### Views (3)
+
+| Tool | Description |
+|------|-------------|
+| `get_view` | Get view details including conditions and execution settings |
+| `count_view` | Get the current ticket count for a view |
+| `list_view_tickets` | List tickets in a view (paginated) |
+
+### Ticket Fields (1)
+
+| Tool | Description |
+|------|-------------|
+| `list_ticket_fields` | List all system and custom fields with types, descriptions, and options |
+
+### Triggers (3)
+
+| Tool | Description |
+|------|-------------|
+| `list_triggers` | List all triggers (or active only) |
+| `get_trigger` | Get a single trigger by ID |
 | `search_triggers` | Search triggers by title |
-| `list_automations` | List automations (time-based rules) |
-| `get_automation` | Get automation details |
+
+### Automations (3)
+
+| Tool | Description |
+|------|-------------|
+| `list_automations` | List all automations (time-based business rules) |
+| `get_automation` | Get a single automation by ID |
 | `search_automations` | Search automations by title |
-| `get_ticket_attachments` | List all attachments on a ticket |
-| `get_attachment` | Get metadata and download URL for an attachment |
+
+### Macros (3)
+
+| Tool | Description |
+|------|-------------|
+| `list_macros` | List all macros (canned agent actions) |
+| `get_macro` | Get a single macro by ID including its actions |
+| `search_macros` | Search macros by title |
+
+### Attachments (2)
+
+| Tool | Description |
+|------|-------------|
+| `get_ticket_attachments` | List all attachments across every comment on a ticket |
+| `get_attachment` | Get metadata and download URL for a single attachment |
+
+### Satisfaction Ratings / CSAT (2)
+
+| Tool | Description |
+|------|-------------|
+| `list_satisfaction_ratings` | List CSAT ratings with optional score/date filters |
+| `count_satisfaction_ratings` | Get the total count of all CSAT ratings (fast cached endpoint) |
+
+---
+
+## What's new
+
+Six tools added since v0.1:
+- `get_ticket_metrics` — reply times, resolution time, reopens, SLA data
+- `list_macros` / `get_macro` / `search_macros` — canned agent actions
+- `list_satisfaction_ratings` / `count_satisfaction_ratings` — CSAT data
 
 ## Building Your Own Tools
 
