@@ -54,17 +54,79 @@ class ZendeskError(Exception):
 
 
 class ZendeskClient:
+    def _fetch_client_credentials_token(self) -> str:
+        """Mint a fresh OAuth access token using the Client Credentials grant.
+
+        POSTs to ``{base_url}/oauth/tokens`` — this endpoint is intentionally
+        bypassed from the ALLOWED_PATHS whitelist because it is an auth
+        bootstrap call, not a data endpoint.
+
+        Raises:
+            ZendeskError: on HTTP error or if the response lacks an
+                ``access_token`` field.
+        """
+        try:
+            resp = httpx.post(
+                f"https://{settings.zd_subdomain}.zendesk.com/oauth/tokens",
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": settings.zd_oauth_client_id,
+                    "client_secret": settings.zd_oauth_client_secret,
+                    "scope": settings.zd_oauth_scope,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15.0,
+            )
+        except httpx.RequestError as e:
+            raise ZendeskError(
+                500,
+                f"OAuth token request failed: {e}",
+                "Check network connectivity and ZD_SUBDOMAIN",
+            )
+
+        if resp.status_code == 401:
+            raise ZendeskError(
+                401,
+                "OAuth client credentials rejected by Zendesk",
+                "Check ZD_OAUTH_CLIENT_ID and ZD_OAUTH_CLIENT_SECRET",
+            )
+        if resp.status_code == 400:
+            detail = resp.json().get("error_description") or resp.text
+            raise ZendeskError(
+                400,
+                f"OAuth token request failed: {detail}",
+                "Check ZD_OAUTH_CLIENT_ID, ZD_OAUTH_CLIENT_SECRET, and ZD_OAUTH_SCOPE",
+            )
+        if resp.status_code != 200:
+            raise ZendeskError(
+                resp.status_code,
+                f"Unexpected response from OAuth token endpoint: HTTP {resp.status_code}",
+                "",
+            )
+
+        token = resp.json().get("access_token")
+        if not token:
+            raise ZendeskError(
+                500,
+                "OAuth response did not contain an access_token",
+                "Unexpected Zendesk response format — please report this as a bug",
+            )
+        return token
+
     def __init__(self):
         self.base_url = settings.zendesk_base_url
         auth_method = settings.auth_method
 
-        client_kwargs = {
+        client_kwargs: Dict[str, Any] = {
             "base_url": self.base_url,
             "timeout": 30.0,
             "headers": {"Accept": "application/json"},
         }
 
-        if auth_method == "oauth":
+        if auth_method == "oauth_client_credentials":
+            token = self._fetch_client_credentials_token()
+            client_kwargs["headers"]["Authorization"] = f"Bearer {token}"
+        elif auth_method == "oauth_static":
             client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, settings.zd_oauth_token)}"
         else:
             client_kwargs["auth"] = (f"{settings.zd_email}/token", settings.zd_api_token)
