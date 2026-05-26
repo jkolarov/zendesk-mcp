@@ -37,8 +37,8 @@ TOOLS = [
     ),
     Tool(
         name="get_ticket",
-        description="Get full details of a ticket by ID including custom fields and resolved names. Comments are included by default, but can be skipped to reduce API calls.",
-        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}, "include_comments": {"type": "boolean", "default": True, "description": "Whether to fetch ticket comments inline. Set false to skip the extra comments API call."}}, "required": ["ticket_id"]},
+        description="Get details of a ticket by ID. By default returns full details with comments and resolved requester/assignee names (3+ API calls). Set include_comments=false for a metadata-only single API call — no comments, no name resolution; only IDs.",
+        inputSchema={"type": "object", "properties": {"ticket_id": {"type": "integer", "description": "Zendesk ticket ID"}, "include_comments": {"type": "boolean", "default": True, "description": "When true (default): fetch comments inline and resolve requester/assignee names. When false: single-call fast path — no comments, no name lookups; requester_id and assignee_id are still returned."}}, "required": ["ticket_id"]},
     ),
     Tool(
         name="get_ticket_audits",

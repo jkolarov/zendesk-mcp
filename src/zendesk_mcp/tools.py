@@ -91,9 +91,7 @@ def get_ticket(ticket_id: int, include_comments: bool = True) -> Dict[str, Any]:
             "priority": ticket.get("priority"),
             "type": ticket.get("type"),
             "requester_id": ticket.get("requester_id"),
-            "requester_name": _get_user_name(ticket.get("requester_id")),
             "assignee_id": ticket.get("assignee_id"),
-            "assignee_name": _get_user_name(ticket.get("assignee_id")),
             "organization_id": ticket.get("organization_id"),
             "tags": ticket.get("tags", []),
             "custom_fields": ticket.get("custom_fields", []),
@@ -101,6 +99,10 @@ def get_ticket(ticket_id: int, include_comments: bool = True) -> Dict[str, Any]:
             "updated_at": ticket.get("updated_at"),
         }
         if include_comments:
+            # Name resolution and comments are bundled: the costly enrichment path
+            # is opt-in. include_comments=False guarantees a single API call.
+            ticket_data["requester_name"] = _get_user_name(ticket.get("requester_id"))
+            ticket_data["assignee_name"] = _get_user_name(ticket.get("assignee_id"))
             comments_result = get_ticket_comments(ticket_id, limit=50)
             if "error" not in comments_result:
                 ticket_data["comments"] = comments_result.get("comments", [])
