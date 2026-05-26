@@ -1,10 +1,33 @@
 import re
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Dict, cast
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .config import settings
+
+
+def _parse_retry_after(value: str) -> int:
+    """Parse a Retry-After header into seconds."""
+    if not value:
+        return 60
+    try:
+        return max(0, int(value))
+    except ValueError:
+        pass
+    try:
+        target = parsedate_to_datetime(value)
+        if target is None:
+            return 60
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        delta = (target - datetime.now(timezone.utc)).total_seconds()
+        return max(0, int(delta))
+    except (TypeError, ValueError):
+        return 60
 
 ALLOWED_PATHS = {
     "/api/v2/search.json",
@@ -188,30 +211,50 @@ class ZendeskClient:
         except httpx.RequestError as e:
             raise ZendeskError(500, f"Request failed: {e}", "Check network connectivity")
 
+    PUT_429_MAX_WAIT_SECONDS = 90
+
     def put(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        """PUT with targeted 429-only retry."""
         self._validate_path(path)
-        try:
-            response = self.client.put(path, json=body, headers={"Content-Type": "application/json"})
-            if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
-                # Token may have expired — re-mint once and retry the request
-                self._refresh_client_credentials_token()
-                response = self.client.put(path, json=body, headers={"Content-Type": "application/json"})
-            if response.status_code == 429:
-                retry_after = response.headers.get("Retry-After", "60")
-                raise ZendeskError(429, "Rate limit exceeded", f"Retry after {retry_after} seconds")
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            if status == 401:
-                raise ZendeskError(401, "Authentication failed", "Check your API token or OAuth token")
-            elif status == 403:
-                raise ZendeskError(403, "Access denied", "Token lacks required permissions")
-            elif status == 404:
-                raise ZendeskError(404, "Resource not found", "Check the ID")
-            raise ZendeskError(status, str(e), "")
-        except httpx.RequestError as e:
-            raise ZendeskError(500, f"Request failed: {e}", "Check network connectivity")
+        max_attempts = 3
+        last_retry_after = "60"
+        for attempt in range(max_attempts):
+            try:
+                response = self.client.put(
+                    path, json=body, headers={"Content-Type": "application/json"}
+                )
+                if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
+                    self._refresh_client_credentials_token()
+                    response = self.client.put(
+                        path, json=body, headers={"Content-Type": "application/json"}
+                    )
+                if response.status_code == 429:
+                    last_retry_after = response.headers.get("Retry-After", "60")
+                    if attempt < max_attempts - 1:
+                        wait_seconds = min(
+                            _parse_retry_after(last_retry_after),
+                            self.PUT_429_MAX_WAIT_SECONDS,
+                        )
+                        time.sleep(wait_seconds)
+                        continue
+                    raise ZendeskError(
+                        429,
+                        "Rate limit exceeded (retries exhausted)",
+                        f"Server asked to retry after {last_retry_after}",
+                    )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                if status == 401:
+                    raise ZendeskError(401, "Authentication failed", "Check your API token or OAuth token")
+                elif status == 403:
+                    raise ZendeskError(403, "Access denied", "Token lacks required permissions")
+                elif status == 404:
+                    raise ZendeskError(404, "Resource not found", "Check the ID")
+                raise ZendeskError(status, str(e), "")
+            except httpx.RequestError as e:
+                raise ZendeskError(500, f"Request failed: {e}", "Check network connectivity")
 
 
 client = ZendeskClient()
