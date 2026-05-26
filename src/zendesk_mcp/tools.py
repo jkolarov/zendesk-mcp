@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict
 
 from .client import client, ZendeskError
@@ -217,12 +218,36 @@ def get_organization(org_id: int) -> Dict[str, Any]:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
 
+_TYPE_CLAUSE_RE = re.compile(r"\btype:\S+", flags=re.IGNORECASE)
+
+
 def search_organizations(query: str, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
     per_page = min(per_page, settings.tools_max_per_page)
     try:
-        result = client.get("/api/v2/organizations/search.json", params={"name": query, "page": page, "per_page": per_page})
-        orgs = [{"id": o.get("id"), "name": o.get("name"), "details": o.get("details"), "tags": o.get("tags", [])} for o in result.get("organizations", [])]
-        return {"page": page, "per_page": per_page, "total": result.get("count", len(orgs)), "returned": len(orgs), "organizations": orgs}
+        cleaned = _TYPE_CLAUSE_RE.sub("", query).strip()
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        full_query = f"type:organization {cleaned}".strip() if cleaned else "type:organization"
+        result = client.get(
+            "/api/v2/search.json",
+            params={"query": full_query, "page": page, "per_page": per_page},
+        )
+        orgs = [
+            {
+                "id": o.get("id"),
+                "name": o.get("name"),
+                "details": o.get("details"),
+                "tags": o.get("tags", []),
+            }
+            for o in result.get("results", [])
+            if o.get("result_type") == "organization"
+        ]
+        return {
+            "page": page,
+            "per_page": per_page,
+            "total": result.get("count", len(orgs)),
+            "returned": len(orgs),
+            "organizations": orgs,
+        }
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 

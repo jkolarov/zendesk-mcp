@@ -77,8 +77,8 @@ TOOLS = [
     ),
     Tool(
         name="search_organizations",
-        description="Search Zendesk organizations by name.",
-        inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}}, "required": ["query"]},
+        description="Search Zendesk organizations using full Zendesk search syntax. The tool always scopes to organizations and strips any caller-supplied type: clause before applying type:organization.",
+        inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Zendesk search query. Bare terms are scoped to organizations automatically. Any explicit type: clause is normalized away and replaced with type:organization."}, "page": {"type": "integer", "minimum": 1, "default": 1}, "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}}, "required": ["query"]},
     ),
     Tool(
         name="list_views",
