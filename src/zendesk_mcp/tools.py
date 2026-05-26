@@ -410,6 +410,9 @@ def get_ticket_metrics(ticket_id: int) -> Dict[str, Any]:
     try:
         result = client.get(f"/api/v2/tickets/{ticket_id}/metrics.json")
         m = result.get("ticket_metric", {})
+        # The API may return a single object or a one-item list depending on the endpoint variant
+        if isinstance(m, list):
+            m = m[0] if m else {}
 
         def _minutes(obj: Any) -> Dict[str, Any] | None:
             if obj is None:
@@ -539,7 +542,12 @@ def count_satisfaction_ratings(
     start_time: int = None,
     end_time: int = None,
 ) -> Dict[str, Any]:
-    """Return the total count of CSAT ratings, optionally filtered by score and/or date range."""
+    """Return the count of CSAT ratings, optionally filtered by score and/or date range.
+
+    When filters are provided the list endpoint is used (it supports filtering and returns
+    an accurate count). When no filters are provided the dedicated /count endpoint is used
+    for a fast approximate account-level total.
+    """
     params: Dict[str, Any] = {}
     if score is not None:
         params["score"] = score
@@ -548,7 +556,13 @@ def count_satisfaction_ratings(
     if end_time is not None:
         params["end_time"] = end_time
     try:
-        result = client.get("/api/v2/satisfaction_ratings/count.json", params=params)
-        return {"count": result.get("count", {}).get("value", 0)}
+        if params:
+            # /count.json ignores filters — use the list endpoint which honours them
+            params["per_page"] = 1
+            result = client.get("/api/v2/satisfaction_ratings.json", params=params)
+            return {"count": result.get("count", 0), "filtered": True}
+        else:
+            result = client.get("/api/v2/satisfaction_ratings/count.json")
+            return {"count": result.get("count", {}).get("value", 0), "filtered": False}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
