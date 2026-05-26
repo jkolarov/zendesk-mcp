@@ -92,7 +92,7 @@ ZD_API_TOKEN=your_api_token_here
 
 ### Option 3: OAuth — Static Access Token
 
-Obtain a token via the OAuth authorization flow, or by clicking "Generate Token" on the OAuth Clients page. Tokens expire (up to 30 days) and must be rotated manually.
+Obtain a token via the OAuth authorization flow. Tokens expire (up to 30 days) and must be rotated manually.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
