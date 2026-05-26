@@ -304,22 +304,28 @@ def search_triggers(query: str, active: bool = None) -> Dict[str, Any]:
 
 
 def get_ticket_attachments(ticket_id: int) -> Dict[str, Any]:
-    """Return all attachments across all comments for a ticket."""
+    """Return all attachments across every comment on a ticket, paginating through all comment pages."""
     try:
-        result = client.get(f"/api/v2/tickets/{ticket_id}/comments.json")
         attachments = []
-        for comment in result.get("comments", []):
-            for a in comment.get("attachments", []):
-                attachments.append({
-                    "id": a.get("id"),
-                    "file_name": a.get("file_name"),
-                    "content_type": a.get("content_type"),
-                    "size": a.get("size"),
-                    "url": a.get("content_url"),
-                    "inline": a.get("inline", False),
-                    "comment_id": comment.get("id"),
-                    "comment_created_at": comment.get("created_at"),
-                })
+        page = 1
+        while True:
+            result = client.get(f"/api/v2/tickets/{ticket_id}/comments.json", params={"page": page, "per_page": 100})
+            for comment in result.get("comments", []):
+                for a in comment.get("attachments", []):
+                    attachments.append({
+                        "id": a.get("id"),
+                        "file_name": a.get("file_name"),
+                        "content_type": a.get("content_type"),
+                        "size": a.get("size"),
+                        "url": a.get("content_url"),
+                        "inline": a.get("inline", False),
+                        "comment_id": comment.get("id"),
+                        "comment_created_at": comment.get("created_at"),
+                    })
+            # Stop when there are no more pages
+            if not result.get("next_page"):
+                break
+            page += 1
         return {"ticket_id": ticket_id, "attachments": attachments, "count": len(attachments)}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
@@ -351,60 +357,46 @@ def get_attachment(attachment_id: int) -> Dict[str, Any]:
 # --- Automations ---
 
 
+def _format_automation(a: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize an automation object from the Zendesk API response."""
+    return {
+        "id": a.get("id"),
+        "title": a.get("title"),
+        "active": a.get("active"),
+        "position": a.get("position"),
+        "conditions": a.get("conditions"),
+        "actions": a.get("actions"),
+    }
+
+
 def list_automations(active_only: bool = False, page: int = 1, per_page: int = 100) -> Dict[str, Any]:
+    """List automations (time-based business rules), optionally filtered to active ones only."""
     path = "/api/v2/automations/active.json" if active_only else "/api/v2/automations.json"
     try:
         result = client.get(path, params={"page": page, "per_page": per_page})
-        automations = [
-            {
-                "id": a.get("id"),
-                "title": a.get("title"),
-                "active": a.get("active"),
-                "position": a.get("position"),
-                "conditions": a.get("conditions"),
-                "actions": a.get("actions"),
-            }
-            for a in result.get("automations", [])
-        ]
+        automations = [_format_automation(a) for a in result.get("automations", [])]
         return {"page": page, "per_page": per_page, "count": result.get("count", len(automations)), "automations": automations}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
 
 def get_automation(automation_id: int) -> Dict[str, Any]:
+    """Get a single automation by ID including its conditions and actions."""
     try:
         result = client.get(f"/api/v2/automations/{automation_id}.json")
-        a = result.get("automation", {})
-        return {
-            "automation": {
-                "id": a.get("id"),
-                "title": a.get("title"),
-                "active": a.get("active"),
-                "position": a.get("position"),
-                "conditions": a.get("conditions"),
-                "actions": a.get("actions"),
-            }
-        }
+        return {"automation": _format_automation(result.get("automation", {}))}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
 
 
 def search_automations(query: str, active: bool = None) -> Dict[str, Any]:
+    """Search automations by title, with an optional active-status filter."""
     params: Dict[str, Any] = {"query": query}
     if active is not None:
         params["active"] = active
     try:
         result = client.get("/api/v2/automations/search.json", params=params)
-        automations = [
-            {
-                "id": a.get("id"),
-                "title": a.get("title"),
-                "active": a.get("active"),
-                "conditions": a.get("conditions"),
-                "actions": a.get("actions"),
-            }
-            for a in result.get("automations", [])
-        ]
+        automations = [_format_automation(a) for a in result.get("automations", [])]
         return {"count": result.get("count", len(automations)), "automations": automations}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
