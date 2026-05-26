@@ -400,3 +400,151 @@ def search_automations(query: str, active: bool = None) -> Dict[str, Any]:
         return {"count": result.get("count", len(automations)), "automations": automations}
     except ZendeskError as e:
         return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+# --- Ticket Metrics ---
+
+
+def get_ticket_metrics(ticket_id: int) -> Dict[str, Any]:
+    """Get performance metrics for a ticket: reply times, resolution time, reopens, and reply count."""
+    try:
+        result = client.get(f"/api/v2/tickets/{ticket_id}/metrics.json")
+        m = result.get("ticket_metric", {})
+        # The API may return a single object or a one-item list depending on the endpoint variant
+        if isinstance(m, list):
+            m = m[0] if m else {}
+
+        def _minutes(obj: Any) -> Dict[str, Any] | None:
+            if obj is None:
+                return None
+            return {"calendar": obj.get("calendar"), "business": obj.get("business")}
+
+        return {
+            "ticket_id": ticket_id,
+            "metrics": {
+                "replies": m.get("replies"),
+                "reopens": m.get("reopens"),
+                "assignee_stations": m.get("assignee_stations"),
+                "group_stations": m.get("group_stations"),
+                "first_reply_time_minutes": _minutes(m.get("reply_time_in_minutes")),
+                "first_resolution_time_minutes": _minutes(m.get("first_resolution_time_in_minutes")),
+                "full_resolution_time_minutes": _minutes(m.get("full_resolution_time_in_minutes")),
+                "agent_wait_time_minutes": _minutes(m.get("agent_wait_time_in_minutes")),
+                "on_hold_time_minutes": _minutes(m.get("on_hold_time_in_minutes")),
+                "created_at": m.get("created_at"),
+                "solved_at": m.get("solved_at"),
+                "assigned_at": m.get("assigned_at"),
+                "initially_assigned_at": m.get("initially_assigned_at"),
+                "latest_comment_added_at": m.get("latest_comment_added_at"),
+            },
+        }
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+# --- Macros ---
+
+
+def _format_macro(m: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a macro object from the Zendesk API response."""
+    return {
+        "id": m.get("id"),
+        "title": m.get("title"),
+        "active": m.get("active"),
+        "description": m.get("description"),
+        "position": m.get("position"),
+        "actions": m.get("actions", []),
+    }
+
+
+def list_macros(active_only: bool = False, page: int = 1, per_page: int = 100) -> Dict[str, Any]:
+    """List macros (canned ticket actions), optionally filtered to active ones only."""
+    path = "/api/v2/macros/active.json" if active_only else "/api/v2/macros.json"
+    try:
+        result = client.get(path, params={"page": page, "per_page": per_page})
+        macros = [_format_macro(m) for m in result.get("macros", [])]
+        return {"page": page, "per_page": per_page, "count": result.get("count", len(macros)), "macros": macros}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+def get_macro(macro_id: int) -> Dict[str, Any]:
+    """Get a single macro by ID including all its actions."""
+    try:
+        result = client.get(f"/api/v2/macros/{macro_id}.json")
+        return {"macro": _format_macro(result.get("macro", {}))}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+def search_macros(query: str, active: bool = None) -> Dict[str, Any]:
+    """Search macros by title, with an optional active-status filter."""
+    params: Dict[str, Any] = {"query": query}
+    if active is not None:
+        params["active"] = active
+    try:
+        result = client.get("/api/v2/macros/search.json", params=params)
+        macros = [_format_macro(m) for m in result.get("macros", [])]
+        return {"count": result.get("count", len(macros)), "macros": macros}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+# --- Satisfaction Ratings (CSAT) ---
+
+
+def _format_satisfaction_rating(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a satisfaction rating object from the Zendesk API response."""
+    return {
+        "id": r.get("id"),
+        "ticket_id": r.get("ticket_id"),
+        "requester_id": r.get("requester_id"),
+        "assignee_id": r.get("assignee_id"),
+        "score": r.get("score"),
+        "comment": r.get("comment"),
+        "reason": r.get("reason"),
+        "created_at": r.get("created_at"),
+        "updated_at": r.get("updated_at"),
+    }
+
+
+def list_satisfaction_ratings(
+    score: str = None,
+    start_time: int = None,
+    end_time: int = None,
+    page: int = 1,
+    per_page: int = 25,
+) -> Dict[str, Any]:
+    """List CSAT satisfaction ratings, optionally filtered by score and/or date range.
+
+    score: 'good', 'bad', 'offered', 'unoffered', 'received',
+           or variants like 'good_with_comment', 'bad_without_comment'.
+    start_time / end_time: Unix epoch timestamps.
+    """
+    per_page = min(per_page, settings.tools_max_per_page)
+    params: Dict[str, Any] = {"page": page, "per_page": per_page}
+    if score is not None:
+        params["score"] = score
+    if start_time is not None:
+        params["start_time"] = start_time
+    if end_time is not None:
+        params["end_time"] = end_time
+    try:
+        result = client.get("/api/v2/satisfaction_ratings.json", params=params)
+        ratings = [_format_satisfaction_rating(r) for r in result.get("satisfaction_ratings", [])]
+        return {"page": page, "per_page": per_page, "returned": len(ratings), "ratings": ratings}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}
+
+
+def count_satisfaction_ratings() -> Dict[str, Any]:
+    """Return an approximate account-level total count of all CSAT ratings.
+
+    Uses Zendesk's dedicated /count endpoint which returns a fast cached total.
+    Filtering is not supported by this endpoint.
+    """
+    try:
+        result = client.get("/api/v2/satisfaction_ratings/count.json")
+        return {"count": result.get("count", {}).get("value", 0)}
+    except ZendeskError as e:
+        return {"error": {"type": "zendesk_error", "message": e.message, "hint": e.hint}}

@@ -31,6 +31,17 @@ ALLOWED_PATHS = {
     "/api/v2/automations/active.json",
     "/api/v2/automations/search.json",
     "/api/v2/automations/{id}.json",
+    # Ticket metrics
+    "/api/v2/tickets/{id}/metrics.json",
+    # Macros
+    "/api/v2/macros.json",
+    "/api/v2/macros/active.json",
+    "/api/v2/macros/search.json",
+    "/api/v2/macros/{id}.json",
+    # Satisfaction ratings
+    "/api/v2/satisfaction_ratings.json",
+    "/api/v2/satisfaction_ratings/count.json",
+    "/api/v2/satisfaction_ratings/{id}.json",
 }
 
 
