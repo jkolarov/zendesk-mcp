@@ -1,18 +1,44 @@
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Iterable
 
 from .client import client, ZendeskError
 from .config import settings
 
 
+_SHOW_MANY_MAX_IDS = 100
+
+
+def _resolve_user_names(user_ids: Iterable[int]) -> Dict[int, str]:
+    seen = set()
+    unique_ids = []
+    for uid in user_ids:
+        if uid and uid not in seen:
+            seen.add(uid)
+            unique_ids.append(uid)
+    if not unique_ids:
+        return {}
+
+    resolved: Dict[int, str] = {}
+    for i in range(0, len(unique_ids), _SHOW_MANY_MAX_IDS):
+        chunk = unique_ids[i : i + _SHOW_MANY_MAX_IDS]
+        ids_param = ",".join(str(uid) for uid in chunk)
+        try:
+            result = client.get("/api/v2/users/show_many.json", params={"ids": ids_param})
+        except ZendeskError:
+            continue
+        if not isinstance(result, dict) or "error" in result:
+            continue
+        for user in result.get("users", []):
+            uid = user.get("id")
+            if uid is not None:
+                resolved[uid] = user.get("name")
+    return resolved
+
+
 def _get_user_name(user_id: int) -> str | None:
     if not user_id:
         return None
-    try:
-        result = client.get(f"/api/v2/users/{user_id}.json")
-        return result.get("user", {}).get("name")
-    except Exception:
-        return None
+    return _resolve_user_names([user_id]).get(user_id)
 
 
 def _validate_ticket_query(query: str) -> None:
@@ -40,19 +66,13 @@ def search_tickets(query: str, page: int = 1, per_page: int = 25) -> Dict[str, A
 
     try:
         result = client.get("/api/v2/search.json", params={"query": query, "page": page, "per_page": per_page})
-
         user_ids = set()
         for item in result.get("results", []):
             if item.get("requester_id"):
                 user_ids.add(item["requester_id"])
             if item.get("assignee_id"):
                 user_ids.add(item["assignee_id"])
-
-        user_names = {}
-        for uid in user_ids:
-            name = _get_user_name(uid)
-            if name:
-                user_names[uid] = name
+        user_names = _resolve_user_names(user_ids)
 
         tickets = []
         for item in result.get("results", []):
@@ -100,10 +120,9 @@ def get_ticket(ticket_id: int, include_comments: bool = True) -> Dict[str, Any]:
             "updated_at": ticket.get("updated_at"),
         }
         if include_comments:
-            # Name resolution and comments are bundled: the costly enrichment path
-            # is opt-in. include_comments=False guarantees a single API call.
-            ticket_data["requester_name"] = _get_user_name(ticket.get("requester_id"))
-            ticket_data["assignee_name"] = _get_user_name(ticket.get("assignee_id"))
+            user_names = _resolve_user_names([ticket.get("requester_id"), ticket.get("assignee_id")])
+            ticket_data["requester_name"] = user_names.get(ticket.get("requester_id"))
+            ticket_data["assignee_name"] = user_names.get(ticket.get("assignee_id"))
             comments_result = get_ticket_comments(ticket_id, limit=50)
             if "error" not in comments_result:
                 ticket_data["comments"] = comments_result.get("comments", [])
