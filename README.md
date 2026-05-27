@@ -6,7 +6,7 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 - **30 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, macros, attachments, and CSAT ratings
 - Read and write operations (search, get, edit, solve)
-- **Three authentication methods**: OAuth Client Credentials (recommended), API token, or static OAuth access token
+- **Three authentication methods**: OAuth Client Credentials (recommended), API token, or pre-generated OAuth token
 - Automatic user name resolution on ticket results
 - Rate limit handling with automatic retries
 - Cross-platform: works on macOS, Linux, and Windows
@@ -57,11 +57,11 @@ The server supports three authentication modes. Set exactly one.
 
 | Mode | Env vars | Notes |
 |---|---|---|
-| **OAuth — Client Credentials** ⭐ recommended | `ZD_SUBDOMAIN` + `ZD_OAUTH_CLIENT_ID` + `ZD_OAUTH_CLIENT_SECRET` | Credentials never expire. Token fetched automatically at startup. |
+| **OAuth — Client Credentials** ⭐ recommended | `ZD_SUBDOMAIN` + `ZD_OAUTH_CLIENT_ID` + `ZD_OAUTH_CLIENT_SECRET` | Credentials never expire. Token fetched and refreshed automatically. |
 | **API Token** | `ZD_SUBDOMAIN` + `ZD_EMAIL` + `ZD_API_TOKEN` | Token generated in Admin Center → Zendesk API. |
-| **OAuth — Static Token** | `ZD_SUBDOMAIN` + `ZD_OAUTH_TOKEN` | Expires (up to 30 days). Manual rotation required. |
+| **OAuth — Pre-generated Token** | `ZD_SUBDOMAIN` + `ZD_OAUTH_TOKEN` | Expires (up to 30 days). Manual rotation required. |
 
-**Priority:** If multiple sets of credentials are present, the order is: Static Token → Client Credentials → API Token.
+**Priority:** If multiple sets of credentials are present, the order is: Pre-generated Token → Client Credentials → API Token.
 
 > ⚠️ `ZD_OAUTH_CLIENT_SECRET` is the OAuth *client secret*, not an access token.
 > Do not paste it as `ZD_OAUTH_TOKEN` — they are different values used differently.
@@ -90,16 +90,16 @@ ZD_EMAIL=you@yourcompany.com
 ZD_API_TOKEN=your_api_token_here
 ```
 
-### Option 3: OAuth — Static Access Token
+### Option 3: OAuth — Pre-generated Token
 
-Obtain a token via the OAuth authorization flow. Tokens expire (up to 30 days) and must be rotated manually.
+Create an OAuth client in Admin Center > Apps & Integrations > OAuth Clients, then generate a token for it using Zendesk's [Create Token API](https://developer.zendesk.com/documentation/api-basics/authentication/creating-and-using-oauth-tokens-with-the-api/) (`POST /api/v2/oauth/tokens`). Copy the token from the response — Zendesk only shows it once.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
 ZD_OAUTH_TOKEN=your_oauth_token_here
 ```
 
-For more details, see [Zendesk OAuth documentation](https://developer.zendesk.com/documentation/api-basics/authentication/creating-and-using-oauth-tokens-with-the-api/).
+Tokens expire in up to 30 days and must be rotated manually. Use Client Credentials (Option 1) to avoid manual rotation.
 
 ## MCP Client Configuration
 
