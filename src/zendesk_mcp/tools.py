@@ -187,7 +187,8 @@ def edit_ticket(ticket_id: int, fields: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": {"type": "validation_error", "message": f"Invalid priority. Must be one of: {', '.join(sorted(VALID_PRIORITIES))}"}}
 
     try:
-        result = client.put(f"/api/v2/tickets/{ticket_id}.json", {"ticket": fields})
+        allowed_fields = {k: v for k, v in fields.items() if k in RECOGNISED_FIELDS}
+        result = client.put(f"/api/v2/tickets/{ticket_id}.json", {"ticket": allowed_fields})
         ticket = result.get("ticket", {})
         return {"ticket": {"id": ticket.get("id"), "subject": ticket.get("subject"), "status": ticket.get("status"), "priority": ticket.get("priority"), "tags": ticket.get("tags", []), "updated_at": ticket.get("updated_at")}}
     except ZendeskError as e:
