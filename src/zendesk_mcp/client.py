@@ -79,25 +79,23 @@ class ZendeskError(Exception):
 
 
 class ZendeskClient:
-    def _fetch_client_credentials_token(self) -> str:
-        """Mint a fresh OAuth access token using the Client Credentials grant.
+    def _fetch_access_token_from_refresh(self) -> str:
+        """Exchange a refresh token for a new short-lived access token.
 
-        POSTs to ``{base_url}/oauth/tokens`` — this endpoint is intentionally
-        bypassed from the ALLOWED_PATHS whitelist because it is an auth
-        bootstrap call, not a data endpoint.
-
-        Raises:
-            ZendeskError: on HTTP error or if the response lacks an
-                ``access_token`` field.
+        Uses ``grant_type=refresh_token`` against Zendesk's standard OAuth
+        token endpoint. The refresh token is obtained once by a Zendesk admin
+        via ``POST /api/v2/oauth/tokens`` and stored in ZD_OAUTH_REFRESH_TOKEN.
+        Refresh tokens expire after 30 days; the admin must generate a new one
+        if that happens.
         """
         try:
             resp = httpx.post(
                 f"https://{get_settings().zd_subdomain}.zendesk.com/oauth/tokens",
                 data={
-                    "grant_type": "client_credentials",
+                    "grant_type": "refresh_token",
+                    "refresh_token": get_settings().zd_oauth_refresh_token,
                     "client_id": get_settings().zd_oauth_client_id,
                     "client_secret": get_settings().zd_oauth_client_secret,
-                    "scope": get_settings().zd_oauth_scope,
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=15.0,
@@ -105,24 +103,25 @@ class ZendeskClient:
         except httpx.RequestError as e:
             raise ZendeskError(
                 500,
-                f"OAuth token request failed: {e}",
+                f"OAuth token refresh failed: {e}",
                 "Check network connectivity and ZD_SUBDOMAIN",
             )
 
         if resp.status_code == 401:
             raise ZendeskError(
                 401,
-                "OAuth client credentials rejected by Zendesk",
+                "OAuth credentials rejected by Zendesk",
                 "Check ZD_OAUTH_CLIENT_ID and ZD_OAUTH_CLIENT_SECRET",
             )
         if resp.status_code == 400:
             detail = resp.json().get("error_description") or resp.text
             raise ZendeskError(
                 400,
-                f"OAuth token request failed: {detail}",
-                "Check ZD_OAUTH_CLIENT_ID, ZD_OAUTH_CLIENT_SECRET, and ZD_OAUTH_SCOPE",
+                f"OAuth token refresh failed: {detail}",
+                "ZD_OAUTH_REFRESH_TOKEN may have expired (30-day TTL). "
+                "Ask your Zendesk admin to generate a new one via POST /api/v2/oauth/tokens.",
             )
-        if resp.status_code != 200:
+        if resp.status_code not in (200, 201):
             raise ZendeskError(
                 resp.status_code,
                 f"Unexpected response from OAuth token endpoint: HTTP {resp.status_code}",
@@ -148,8 +147,8 @@ class ZendeskClient:
             "headers": {"Accept": "application/json"},
         }
 
-        if self.auth_method == "oauth_client_credentials":
-            token = self._fetch_client_credentials_token()
+        if self.auth_method == "oauth_refresh_token":
+            token = self._fetch_access_token_from_refresh()
             client_kwargs["headers"]["Authorization"] = f"Bearer {token}"
         elif self.auth_method == "oauth_static":
             client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, get_settings().zd_oauth_token)}"
@@ -158,15 +157,14 @@ class ZendeskClient:
 
         self.client = httpx.Client(**client_kwargs)
 
-    def _refresh_client_credentials_token(self) -> None:
+    def _refresh_access_token(self) -> None:
         """Re-mint the access token and update the in-memory Authorization header.
 
-        Called once on a 401 when ``auth_method == "oauth_client_credentials"``.
-        Zendesk OAuth access tokens have a finite TTL, so a long-lived MCP server
-        will eventually outlive its initial token. Re-minting recovers transparently
-        on the next call.
+        Called once on a 401 to recover from an expired access token. The
+        refresh token itself has a 30-day TTL; if it has also expired Zendesk
+        returns a 400 with a clear error message.
         """
-        token = self._fetch_client_credentials_token()
+        token = self._fetch_access_token_from_refresh()
         self.client.headers["Authorization"] = f"Bearer {token}"
 
     def _validate_path(self, path: str) -> None:
@@ -189,8 +187,8 @@ class ZendeskClient:
         for attempt in range(max_attempts):
             try:
                 response = self.client.get(path, params=params)
-                if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
-                    self._refresh_client_credentials_token()
+                if response.status_code == 401 and self.auth_method == "oauth_refresh_token":
+                    self._refresh_access_token()
                     response = self.client.get(path, params=params)
                 if response.status_code == 429:
                     last_retry_after = response.headers.get("Retry-After", "60")
@@ -232,8 +230,8 @@ class ZendeskClient:
                 response = self.client.put(
                     path, json=body, headers={"Content-Type": "application/json"}
                 )
-                if response.status_code == 401 and self.auth_method == "oauth_client_credentials":
-                    self._refresh_client_credentials_token()
+                if response.status_code == 401 and self.auth_method == "oauth_refresh_token":
+                    self._refresh_access_token()
                     response = self.client.put(
                         path, json=body, headers={"Content-Type": "application/json"}
                     )

@@ -6,7 +6,7 @@ An unofficial [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) s
 
 - **30 tools** covering tickets, users, organizations, views, ticket fields, triggers, automations, macros, attachments, and CSAT ratings
 - Read and write operations (search, get, edit, solve)
-- **Three authentication methods**: OAuth Client Credentials (recommended), API token, or pre-generated OAuth token
+- **Three authentication methods**: OAuth Refresh Token (recommended), API token, or pre-generated OAuth token
 - Automatic user name resolution on ticket results
 - Rate limit handling with automatic retries
 - Cross-platform: works on macOS, Linux, and Windows
@@ -57,32 +57,49 @@ The server supports three authentication modes. Set exactly one.
 
 | Mode | Env vars | Notes |
 |---|---|---|
-| **OAuth — Client Credentials** ⭐ recommended | `ZD_SUBDOMAIN` + `ZD_OAUTH_CLIENT_ID` + `ZD_OAUTH_CLIENT_SECRET` | Credentials never expire. Token fetched and refreshed automatically. |
-| **API Token** | `ZD_SUBDOMAIN` + `ZD_EMAIL` + `ZD_API_TOKEN` | Token generated in Admin Center → Zendesk API. |
-| **OAuth — Pre-generated Token** | `ZD_SUBDOMAIN` + `ZD_OAUTH_TOKEN` | Expires (up to 30 days). Manual rotation required. |
+| **OAuth — Refresh Token** ⭐ recommended | `ZD_SUBDOMAIN` + `ZD_OAUTH_CLIENT_ID` + `ZD_OAUTH_CLIENT_SECRET` + `ZD_OAUTH_REFRESH_TOKEN` | Server mints and renews access tokens automatically. Refresh token valid 30 days. |
+| **API Token** | `ZD_SUBDOMAIN` + `ZD_EMAIL` + `ZD_API_TOKEN` | Simple. Token generated in Admin Center → Zendesk API. |
+| **OAuth — Static Token** | `ZD_SUBDOMAIN` + `ZD_OAUTH_TOKEN` | Expires (up to 30 days). Manual rotation required. |
 
-**Priority:** If multiple sets of credentials are present, the order is: Pre-generated Token → Client Credentials → API Token.
+**Priority:** If multiple sets of credentials are present, the order is: Static Token → Refresh Token → API Token.
 
-> ⚠️ `ZD_OAUTH_CLIENT_SECRET` is the OAuth *client secret*, not an access token.
-> Do not paste it as `ZD_OAUTH_TOKEN` — they are different values used differently.
-> The server automatically exchanges the client secret for a token on every startup.
+### Option 1: OAuth — Refresh Token (recommended)
 
-### Option 1: OAuth — Client Credentials (recommended)
+This is a two-step admin setup done once. The agent receives three values and never needs to touch Zendesk again (until the 30-day refresh token expires).
 
-Create an OAuth client in Admin Center > Apps & Integrations > OAuth Clients.
+**Step 1 — Create a confidential OAuth client (admin, one-time)**
+
+In Admin Center → Apps & Integrations → OAuth Clients → Add OAuth Client:
+- Set **Client type** to **Confidential**
+- Note the **Client ID** (identifier string) and **Client Secret**
+
+**Step 2 — Generate a refresh token (admin, every 30 days)**
+
+```bash
+curl -X POST https://yourcompany.zendesk.com/api/v2/oauth/tokens.json \
+  -u "admin@yourcompany.com/token:<admin_api_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"token": {"client_id": <numeric_client_id>, "scopes": ["read", "write"]}}'
+```
+
+Copy the `refresh_token` value from the response — Zendesk only shows it once.
+
+**Agent configuration**
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
-ZD_OAUTH_CLIENT_ID=your_client_id_here
-ZD_OAUTH_CLIENT_SECRET=your_client_secret_here
-# ZD_OAUTH_SCOPE=read write   # optional, this is the default
+ZD_OAUTH_CLIENT_ID=your_client_identifier
+ZD_OAUTH_CLIENT_SECRET=your_client_secret
+ZD_OAUTH_REFRESH_TOKEN=your_refresh_token
 ```
 
-Client ID and Client Secret **never expire** — configure once and forget.
+The server exchanges the refresh token for a short-lived access token on startup and re-mints it automatically when it expires (typically every 30 minutes).
+
+> ⚠️ The refresh token itself expires after **30 days**. When it does, the admin repeats Step 2 and gives the agent the new `ZD_OAUTH_REFRESH_TOKEN` value.
 
 ### Option 2: API Token
 
-Go to Admin Center > Apps and integrations > Zendesk API > Add API Token.
+Go to Admin Center → Apps & Integrations → Zendesk API → Add API Token.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
@@ -90,16 +107,14 @@ ZD_EMAIL=you@yourcompany.com
 ZD_API_TOKEN=your_api_token_here
 ```
 
-### Option 3: OAuth — Pre-generated Token
+### Option 3: OAuth — Static Token
 
-Create an OAuth client in Admin Center > Apps & Integrations > OAuth Clients, then generate a token for it using Zendesk's [Create Token API](https://developer.zendesk.com/documentation/api-basics/authentication/creating-and-using-oauth-tokens-with-the-api/) (`POST /api/v2/oauth/tokens`). Copy the token from the response — Zendesk only shows it once.
+Use the `token` value (not `refresh_token`) from the Step 2 curl above, or generate a token from the OAuth Clients page in Admin Center. Expires in up to 30 days and must be rotated manually.
 
 ```bash
 ZD_SUBDOMAIN=yourcompany
-ZD_OAUTH_TOKEN=your_oauth_token_here
+ZD_OAUTH_TOKEN=your_oauth_access_token_here
 ```
-
-Tokens expire in up to 30 days and must be rotated manually. Use Client Credentials (Option 1) to avoid manual rotation.
 
 ## MCP Client Configuration
 
@@ -107,7 +122,7 @@ Tokens expire in up to 30 days and must be rotated manually. Use Client Credenti
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-**Using OAuth Client Credentials (recommended):**
+**Using OAuth Refresh Token (recommended):**
 ```json
 {
   "mcpServers": {
@@ -115,8 +130,9 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
-        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_identifier",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret",
+        "ZD_OAUTH_REFRESH_TOKEN": "your_refresh_token"
       }
     }
   }
@@ -150,8 +166,9 @@ Edit `~/.config/amazonq/mcp.json` (Linux/macOS) or `%USERPROFILE%\.config\amazon
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
-        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_identifier",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret",
+        "ZD_OAUTH_REFRESH_TOKEN": "your_refresh_token"
       }
     }
   }
@@ -171,8 +188,9 @@ Add to `.cursor/mcp.json` in your project or global config:
       "command": "zendesk-mcp",
       "env": {
         "ZD_SUBDOMAIN": "yourcompany",
-        "ZD_OAUTH_CLIENT_ID": "your_client_id_here",
-        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret_here"
+        "ZD_OAUTH_CLIENT_ID": "your_client_identifier",
+        "ZD_OAUTH_CLIENT_SECRET": "your_client_secret",
+        "ZD_OAUTH_REFRESH_TOKEN": "your_refresh_token"
       }
     }
   }
