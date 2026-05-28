@@ -10,12 +10,13 @@ class Settings(BaseSettings):
     zd_subdomain: str
     zd_email: Optional[str] = None
     zd_api_token: Optional[str] = None
-    # Static OAuth access token (expires up to 30 days; lower priority than client credentials)
+    # OAuth — static pre-generated access token
     zd_oauth_token: Optional[str] = None
-    # OAuth Client Credentials — permanent credentials, token minted at startup
+    # OAuth — refresh token flow (recommended): admin generates a refresh token once,
+    # the server mints short-lived access tokens from it automatically
     zd_oauth_client_id: Optional[str] = None
     zd_oauth_client_secret: Optional[str] = None
-    zd_oauth_scope: str = "read write"
+    zd_oauth_refresh_token: Optional[str] = None
     tools_max_per_page: int = 100
     tools_max_pages: int = 100
 
@@ -30,21 +31,25 @@ class Settings(BaseSettings):
 
     @property
     def auth_method(self) -> str:
-        # Priority 1: Static OAuth access token (pre-generated; overrides everything else
-        # so that an explicitly-provided token is never silently ignored)
+        # Priority 1: Static OAuth access token (pre-generated; overrides everything else)
         if self.zd_oauth_token:
             return "oauth_static"
-        # Priority 2: OAuth Client Credentials (permanent credentials, no expiry)
-        if self.zd_oauth_client_id or self.zd_oauth_client_secret:
-            if not self.zd_oauth_client_id:
+        # Priority 2: OAuth Refresh Token flow — admin generates a refresh token once,
+        # server mints short-lived access tokens automatically
+        if self.zd_oauth_client_id or self.zd_oauth_client_secret or self.zd_oauth_refresh_token:
+            missing = [
+                name for name, val in [
+                    ("ZD_OAUTH_CLIENT_ID", self.zd_oauth_client_id),
+                    ("ZD_OAUTH_CLIENT_SECRET", self.zd_oauth_client_secret),
+                    ("ZD_OAUTH_REFRESH_TOKEN", self.zd_oauth_refresh_token),
+                ] if not val
+            ]
+            if missing:
                 raise ValueError(
-                    "ZD_OAUTH_CLIENT_SECRET is set but ZD_OAUTH_CLIENT_ID is missing."
+                    f"OAuth refresh token auth is incomplete. Missing: {', '.join(missing)}.\n"
+                    "All three are required: ZD_OAUTH_CLIENT_ID, ZD_OAUTH_CLIENT_SECRET, ZD_OAUTH_REFRESH_TOKEN."
                 )
-            if not self.zd_oauth_client_secret:
-                raise ValueError(
-                    "ZD_OAUTH_CLIENT_ID is set but ZD_OAUTH_CLIENT_SECRET is missing."
-                )
-            return "oauth_client_credentials"
+            return "oauth_refresh_token"
         # Priority 3: API token (email + token pair)
         if self.zd_api_token and self.zd_email:
             return "api_token"
@@ -54,7 +59,7 @@ class Settings(BaseSettings):
             raise ValueError("ZD_EMAIL is required when using ZD_API_TOKEN for API token auth.")
         raise ValueError(
             "Authentication not configured. Provide one of:\n"
-            "  • ZD_OAUTH_CLIENT_ID + ZD_OAUTH_CLIENT_SECRET (recommended)\n"
+            "  • ZD_OAUTH_CLIENT_ID + ZD_OAUTH_CLIENT_SECRET + ZD_OAUTH_REFRESH_TOKEN (recommended)\n"
             "  • ZD_OAUTH_TOKEN (static access token)\n"
             "  • ZD_EMAIL + ZD_API_TOKEN"
         )
