@@ -258,4 +258,24 @@ class ZendeskClient:
                 raise ZendeskError(500, f"Request failed: {e}", "Check network connectivity")
 
 
-client = ZendeskClient()
+_instance: ZendeskClient | None = None
+
+
+class _LazyClient:
+    """Defers ZendeskClient construction (and any OAuth network call) to the first request."""
+
+    def get(self, path: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        return _get_instance().get(path, params)
+
+    def put(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        return _get_instance().put(path, body)
+
+
+def _get_instance() -> ZendeskClient:
+    global _instance
+    if _instance is None:
+        _instance = ZendeskClient()
+    return _instance
+
+
+client = _LazyClient()
