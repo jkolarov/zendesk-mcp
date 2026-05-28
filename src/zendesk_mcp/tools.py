@@ -2,7 +2,7 @@ import re
 from typing import Any, Dict, Iterable
 
 from .client import client, ZendeskError
-from .config import settings
+from .config import get_settings
 
 
 _SHOW_MANY_MAX_IDS = 100
@@ -60,9 +60,9 @@ def count_tickets(query: str) -> Dict[str, Any]:
 
 def search_tickets(query: str, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
     _validate_ticket_query(query)
-    per_page = min(per_page, settings.tools_max_per_page)
-    if page > settings.tools_max_pages:
-        return {"error": {"type": "pagination_limit", "message": f"Page {page} exceeds maximum of {settings.tools_max_pages}"}}
+    per_page = min(per_page, get_settings().tools_max_per_page)
+    if page > get_settings().tools_max_pages:
+        return {"error": {"type": "pagination_limit", "message": f"Page {page} exceeds maximum of {get_settings().tools_max_pages}"}}
 
     try:
         result = client.get("/api/v2/search.json", params={"query": query, "page": page, "per_page": per_page})
@@ -216,7 +216,7 @@ def get_user(user_id: int) -> Dict[str, Any]:
 
 
 def search_users(query: str, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
-    per_page = min(per_page, settings.tools_max_per_page)
+    per_page = min(per_page, get_settings().tools_max_per_page)
     try:
         result = client.get("/api/v2/users/search.json", params={"query": query, "page": page, "per_page": per_page})
         users = [{"id": u.get("id"), "name": u.get("name"), "email": u.get("email"), "role": u.get("role"), "organization_id": u.get("organization_id"), "active": u.get("active")} for u in result.get("users", [])]
@@ -241,7 +241,7 @@ _TYPE_CLAUSE_RE = re.compile(r"\btype:\S+", flags=re.IGNORECASE)
 
 
 def search_organizations(query: str, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
-    per_page = min(per_page, settings.tools_max_per_page)
+    per_page = min(per_page, get_settings().tools_max_per_page)
     try:
         cleaned = _TYPE_CLAUSE_RE.sub("", query).strip()
         cleaned = re.sub(r"\s+", " ", cleaned)
@@ -276,7 +276,7 @@ def search_organizations(query: str, page: int = 1, per_page: int = 25) -> Dict[
 
 def list_views(active_only: bool = False, page: int = 1, per_page: int = 100) -> Dict[str, Any]:
     """List all views (or active views only). Lets agents discover view IDs."""
-    per_page = min(per_page, settings.tools_max_per_page)
+    per_page = min(per_page, get_settings().tools_max_per_page)
     path = "/api/v2/views/active.json" if active_only else "/api/v2/views.json"
     try:
         result = client.get(path, params={"page": page, "per_page": per_page})
@@ -313,7 +313,7 @@ def count_view(view_id: int) -> Dict[str, Any]:
 
 
 def list_view_tickets(view_id: int, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
-    per_page = min(per_page, settings.tools_max_per_page)
+    per_page = min(per_page, get_settings().tools_max_per_page)
     try:
         result = client.get(f"/api/v2/views/{view_id}/tickets.json", params={"page": page, "per_page": per_page})
         tickets = [{"id": t.get("id"), "subject": t.get("subject"), "status": t.get("status"), "priority": t.get("priority"), "created_at": t.get("created_at"), "updated_at": t.get("updated_at")} for t in result.get("tickets", [])]
@@ -589,7 +589,7 @@ def list_satisfaction_ratings(
            or variants like 'good_with_comment', 'bad_without_comment'.
     start_time / end_time: Unix epoch timestamps.
     """
-    per_page = min(per_page, settings.tools_max_per_page)
+    per_page = min(per_page, get_settings().tools_max_per_page)
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
     if score is not None:
         params["score"] = score
