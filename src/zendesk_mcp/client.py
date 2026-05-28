@@ -6,7 +6,7 @@ from typing import Any, Dict, cast
 
 import httpx
 
-from .config import settings
+from .config import get_settings
 
 
 def _parse_retry_after(value: str) -> int:
@@ -92,12 +92,12 @@ class ZendeskClient:
         """
         try:
             resp = httpx.post(
-                f"https://{settings.zd_subdomain}.zendesk.com/oauth/tokens",
+                f"https://{get_settings().zd_subdomain}.zendesk.com/oauth/tokens",
                 data={
                     "grant_type": "client_credentials",
-                    "client_id": settings.zd_oauth_client_id,
-                    "client_secret": settings.zd_oauth_client_secret,
-                    "scope": settings.zd_oauth_scope,
+                    "client_id": get_settings().zd_oauth_client_id,
+                    "client_secret": get_settings().zd_oauth_client_secret,
+                    "scope": get_settings().zd_oauth_scope,
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=15.0,
@@ -139,8 +139,8 @@ class ZendeskClient:
         return token
 
     def __init__(self):
-        self.base_url = settings.zendesk_base_url
-        self.auth_method = settings.auth_method
+        self.base_url = get_settings().zendesk_base_url
+        self.auth_method = get_settings().auth_method
 
         client_kwargs: Dict[str, Any] = {
             "base_url": self.base_url,
@@ -152,9 +152,9 @@ class ZendeskClient:
             token = self._fetch_client_credentials_token()
             client_kwargs["headers"]["Authorization"] = f"Bearer {token}"
         elif self.auth_method == "oauth_static":
-            client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, settings.zd_oauth_token)}"
+            client_kwargs["headers"]["Authorization"] = f"Bearer {cast(str, get_settings().zd_oauth_token)}"
         else:
-            client_kwargs["auth"] = (f"{settings.zd_email}/token", settings.zd_api_token)
+            client_kwargs["auth"] = (f"{get_settings().zd_email}/token", get_settings().zd_api_token)
 
         self.client = httpx.Client(**client_kwargs)
 
@@ -266,4 +266,24 @@ class ZendeskClient:
                 raise ZendeskError(500, f"Request failed: {e}", "Check network connectivity")
 
 
-client = ZendeskClient()
+_instance: ZendeskClient | None = None
+
+
+class _LazyClient:
+    """Defers ZendeskClient construction (and any OAuth network call) to the first request."""
+
+    def get(self, path: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        return _get_instance().get(path, params)
+
+    def put(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        return _get_instance().put(path, body)
+
+
+def _get_instance() -> ZendeskClient:
+    global _instance
+    if _instance is None:
+        _instance = ZendeskClient()
+    return _instance
+
+
+client = _LazyClient()
