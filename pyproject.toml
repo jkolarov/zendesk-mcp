@@ -16,7 +16,6 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.5.2",
     "structlog>=24.1.0",
-    "tenacity>=8.2.3",
 ]
 
 [project.optional-dependencies]
