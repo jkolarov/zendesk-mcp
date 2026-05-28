@@ -174,7 +174,7 @@ class ZendeskClient:
         for allowed in ALLOWED_PATHS:
             if "{id}" in allowed:
                 pattern = allowed.replace("{id}", r"\d+").replace(".", r"\.")
-                if re.match(pattern, normalized):
+                if re.fullmatch(pattern, normalized):
                     return
             elif normalized == allowed:
                 return
